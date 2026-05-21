@@ -1,0 +1,61 @@
+name: CI/CD AWS Deployment (ECR)
+
+on:
+  push:
+    branches:
+      - deploy 
+
+env:
+  IMAGE_NAME: 443078323792.dkr.ecr.us-east-1.amazonaws.com/api-despachos
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout del código
+        uses: actions/checkout@v4
+
+      - name: Configurar credenciales de AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }} 
+          aws-region: us-east-1
+
+      - name: Iniciar sesión en Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Extraer metadatos para Docker
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE_NAME }}
+          tags: |
+            type=sha,format=short
+            type=raw,value=latest
+
+      - name: Construir y publicar imagen Docker
+        uses: docker/build-push-action@v5
+        with:
+          # VERIFICA: Pon el nombre de la carpeta de código de Despachos aquí
+          context: ./Springboot-API-REST-DESPACHO
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+
+  deploy-to-ec2:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - name: Desplegar en AWS EC2 vía SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.AWS_EC2_HOST }}
+          username: ${{ secrets.AWS_EC2_USER }}
+          key: ${{ secrets.AWS_EC2_SSH_KEY }}
+          script: |
+            cd /home/${{ secrets.AWS_EC2_USER }}/app
+            docker compose pull
+            docker compose up -d
