@@ -56,6 +56,9 @@ jobs:
           username: ${{ secrets.AWS_EC2_USER }}
           key: ${{ secrets.AWS_EC2_SSH_KEY }}
           script: |
+            sudo apt-get update -y
+            sudo apt-get install awscli -y
+            aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 443078323792.dkr.ecr.us-east-1.amazonaws.com
             cd /home/${{ secrets.AWS_EC2_USER }}/app
             docker compose pull
             docker compose up -d
